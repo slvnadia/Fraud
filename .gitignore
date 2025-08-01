@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+
+# File sistem operasi
+.DS_Store
+Thumbs.db
+
+# File IDE/Editor
+.vscode/
+.idea/
+*.pyc
