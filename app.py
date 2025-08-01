@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
-import re
 
 # =============================================================================
 # Konfigurasi Awal dan Pemuatan Model
@@ -24,31 +23,23 @@ def load_artifacts():
 
 model, scaler = load_artifacts()
 
-# Definisi kolom dan indeks fitur
+# Definisi kolom sesuai dengan model LAMA (tanpa 'isDrained')
 PRE_SELECTION_COLUMNS = [
     'amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest',
     'newbalanceDest', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT',
-    'type_TRANSFER', 'isDrained'
+    'type_TRANSFER'
 ]
+
+# Definisikan 5 fitur yang dipilih oleh model LAMA
 SELECTED_FEATURE_NAMES = [
-    'amount', 'oldbalanceOrg', 'oldbalanceDest', 'newbalanceDest', 'isDrained'
+    'amount', 'oldbalanceOrg', 'oldbalanceDest', 'newbalanceDest', 'type_TRANSFER'
 ]
+
+# Dapatkan indeks dari fitur yang terpilih
 if model and scaler:
     SELECTED_INDICES = [PRE_SELECTION_COLUMNS.index(col) for col in SELECTED_FEATURE_NAMES]
 else:
     SELECTED_INDICES = []
-
-# =============================================================================
-# Fungsi Bantuan untuk Input Nominal
-# =============================================================================
-def format_number(number_string):
-    """Membersihkan dan memformat string angka dengan pemisah titik."""
-    # Hapus semua karakter non-digit
-    cleaned_string = re.sub(r'[^\d]', '', number_string)
-    if not cleaned_string:
-        return "0"
-    # Konversi ke integer dan format dengan pemisah titik
-    return f"{int(cleaned_string):,}".replace(",", ".")
 
 # =============================================================================
 # Antarmuka Pengguna (UI) Streamlit
@@ -56,32 +47,19 @@ def format_number(number_string):
 st.title("🕵️ Deteksi Penipuan Transaksi Digital")
 st.write("Aplikasi ini menggunakan model Machine Learning untuk memprediksi potensi penipuan.")
 
-# Inisialisasi session state untuk menyimpan nilai input
-if 'amount_str' not in st.session_state:
-    st.session_state.amount_str = "0"
-if 'oldbalanceOrg_str' not in st.session_state:
-    st.session_state.oldbalanceOrg_str = "0"
-if 'newbalanceOrig_str' not in st.session_state:
-    st.session_state.newbalanceOrig_str = "0"
-if 'oldbalanceDest_str' not in st.session_state:
-    st.session_state.oldbalanceDest_str = "0"
-if 'newbalanceDest_str' not in st.session_state:
-    st.session_state.newbalanceDest_str = "0"
-
 with st.form("transaction_form"):
     st.header("Masukkan Detail Transaksi")
     
     col1, col2 = st.columns(2)
     with col1:
         type_transaction = st.selectbox("Tipe Transaksi", ('TRANSFER', 'CASH_OUT', 'PAYMENT', 'CASH_IN', 'DEBIT'))
-        # Gunakan st.text_input untuk kontrol penuh
-        st.session_state.amount_str = st.text_input("Jumlah Transaksi (Amount)", value=st.session_state.amount_str)
-        st.session_state.oldbalanceOrg_str = st.text_input("Saldo Awal Pengirim (oldbalanceOrg)", value=st.session_state.oldbalanceOrg_str)
+        amount = st.number_input("Jumlah Transaksi (Amount)", min_value=0.0, format="%.2f")
+        oldbalanceOrg = st.number_input("Saldo Awal Pengirim (oldbalanceOrg)", min_value=0.0, format="%.2f")
     
     with col2:
-        st.session_state.newbalanceOrig_str = st.text_input("Saldo Akhir Pengirim (newbalanceOrig)", value=st.session_state.newbalanceOrig_str)
-        st.session_state.oldbalanceDest_str = st.text_input("Saldo Awal Penerima (oldbalanceDest)", value=st.session_state.oldbalanceDest_str)
-        st.session_state.newbalanceDest_str = st.text_input("Saldo Akhir Penerima (newbalanceDest)", value=st.session_state.newbalanceDest_str)
+        newbalanceOrig = st.number_input("Saldo Akhir Pengirim (newbalanceOrig)", min_value=0.0, format="%.2f")
+        oldbalanceDest = st.number_input("Saldo Awal Penerima (oldbalanceDest)", min_value=0.0, format="%.2f")
+        newbalanceDest = st.number_input("Saldo Akhir Penerima (newbalanceDest)", min_value=0.0, format="%.2f")
 
     submit_button = st.form_submit_button(label="Cek Transaksi")
 
@@ -94,32 +72,28 @@ if submit_button:
     else:
         with st.spinner('Memproses dan memprediksi...'):
             try:
-                # 1. Bersihkan dan konversi input string ke float
-                amount = float(re.sub(r'[^\d]', '', st.session_state.amount_str))
-                oldbalanceOrg = float(re.sub(r'[^\d]', '', st.session_state.oldbalanceOrg_str))
-                newbalanceOrig = float(re.sub(r'[^\d]', '', st.session_state.newbalanceOrig_str))
-                oldbalanceDest = float(re.sub(r'[^\d]', '', st.session_state.oldbalanceDest_str))
-                newbalanceDest = float(re.sub(r'[^\d]', '', st.session_state.newbalanceDest_str))
-
-                # 2. Kumpulkan data untuk DataFrame
+                # 1. Kumpulkan data input
                 data = {
                     'type': type_transaction, 'amount': amount, 'oldbalanceOrg': oldbalanceOrg,
                     'newbalanceOrig': newbalanceOrig, 'oldbalanceDest': oldbalanceDest, 'newbalanceDest': newbalanceDest
                 }
                 
-                # 3. Lakukan pra-pemrosesan (sama seperti sebelumnya)
+                # 2. Lakukan pra-pemrosesan sesuai model LAMA
                 input_df = pd.DataFrame([data])
-                input_df['isDrained'] = (np.abs(input_df['oldbalanceOrg'] - input_df['amount']) < 0.01).astype(int)
+                
                 all_types = ['CASH_IN', 'CASH_OUT', 'DEBIT', 'PAYMENT', 'TRANSFER']
                 input_df['type'] = pd.Categorical(input_df['type'], categories=all_types)
                 input_df_encoded = pd.get_dummies(input_df, prefix='type', drop_first=True)
+                
                 input_df_aligned = input_df_encoded.reindex(columns=PRE_SELECTION_COLUMNS, fill_value=0)
                 
+                # 3. Lakukan Scaling dan Feature Selection
                 scaled_features = scaler.transform(input_df_aligned)
                 final_features = scaled_features[:, SELECTED_INDICES]
                 
                 # 4. Lakukan Prediksi
                 prediction_proba = model.predict_proba(final_features)[:, 1]
+                # Model lama mungkin menggunakan threshold 0.9, kita kembalikan ke 0.5 untuk standar
                 threshold = 0.5
                 is_fraud = prediction_proba[0] >= threshold
                 
@@ -135,10 +109,3 @@ if submit_button:
 
             except Exception as e:
                 st.error(f"Terjadi error saat prediksi: {e}")
-
-# Format ulang nilai di session state setelah form disubmit (agar tampilan rapi)
-st.session_state.amount_str = format_number(st.session_state.amount_str)
-st.session_state.oldbalanceOrg_str = format_number(st.session_state.oldbalanceOrg_str)
-st.session_state.newbalanceOrig_str = format_number(st.session_state.newbalanceOrig_str)
-st.session_state.oldbalanceDest_str = format_number(st.session_state.oldbalanceDest_str)
-st.session_state.newbalanceDest_str = format_number(st.session_state.newbalanceDest_str)
