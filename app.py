@@ -4,6 +4,13 @@ import numpy as np
 import joblib
 import os
 
+# ======================= PERBAIKAN =======================
+# st.set_page_config() harus menjadi perintah Streamlit pertama yang dijalankan.
+# Kita pindahkan dari bawah ke sini.
+st.set_page_config(page_title="Deteksi Penipuan Transaksi", layout="centered")
+# =================== AKHIR PERBAIKAN ===================
+
+
 # =============================================================================
 # Konfigurasi dan Pemuatan Model (dijalankan sekali)
 # =============================================================================
@@ -24,7 +31,6 @@ def load_artifacts():
 model, scaler = load_artifacts()
 
 # Definisikan kolom secara eksplisit sesuai urutan saat scaler di-fit di notebook
-# Ini adalah daftar 10 kolom SEBELUM feature selection
 PRE_SELECTION_COLUMNS = [
     'amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest',
     'newbalanceDest', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT',
@@ -46,7 +52,6 @@ else:
 # Antarmuka Pengguna (UI) Streamlit
 # =============================================================================
 
-st.set_page_config(page_title="Deteksi Penipuan Transaksi", layout="centered")
 st.title("🕵️ Deteksi Penipuan Transaksi Digital")
 st.write("Aplikasi ini menggunakan model Machine Learning untuk memprediksi potensi penipuan pada transaksi keuangan.")
 
@@ -54,7 +59,6 @@ st.write("Aplikasi ini menggunakan model Machine Learning untuk memprediksi pote
 with st.form("transaction_form"):
     st.header("Masukkan Detail Transaksi")
     
-    # Input dari pengguna
     col1, col2 = st.columns(2)
     with col1:
         type_transaction = st.selectbox("Tipe Transaksi", ('TRANSFER', 'CASH_OUT', 'PAYMENT', 'CASH_IN', 'DEBIT'))
@@ -66,7 +70,6 @@ with st.form("transaction_form"):
         oldbalanceDest = st.number_input("Saldo Awal Penerima (oldbalanceDest)", min_value=0.0, format="%.2f")
         newbalanceDest = st.number_input("Saldo Akhir Penerima (newbalanceDest)", min_value=0.0, format="%.2f")
 
-    # Tombol submit
     submit_button = st.form_submit_button(label="Cek Transaksi")
 
 # =============================================================================
@@ -79,7 +82,7 @@ if submit_button:
     else:
         with st.spinner('Memproses dan memprediksi...'):
             try:
-                # 1. Kumpulkan data input
+                # Kumpulkan data input
                 data = {
                     'type': type_transaction,
                     'amount': amount,
@@ -89,7 +92,7 @@ if submit_button:
                     'newbalanceDest': newbalanceDest
                 }
                 
-                # 2. Lakukan pra-pemrosesan persis seperti di notebook
+                # Lakukan pra-pemrosesan persis seperti di notebook
                 input_df = pd.DataFrame([data])
                 input_df['isDrained'] = (np.abs(input_df['oldbalanceOrg'] - input_df['amount']) < 0.01).astype(int)
                 
@@ -99,16 +102,16 @@ if submit_button:
                 
                 input_df_aligned = input_df_encoded.reindex(columns=PRE_SELECTION_COLUMNS, fill_value=0)
                 
-                # 3. Lakukan Scaling dan Feature Selection
+                # Lakukan Scaling dan Feature Selection
                 scaled_features = scaler.transform(input_df_aligned)
                 final_features = scaled_features[:, SELECTED_INDICES]
                 
-                # 4. Lakukan Prediksi
+                # Lakukan Prediksi
                 prediction_proba = model.predict_proba(final_features)[:, 1]
-                threshold = 0.5  # Ambang batas standar sesuai notebook baru
+                threshold = 0.5
                 is_fraud = prediction_proba[0] >= threshold
                 
-                # 5. Tampilkan Hasil
+                # Tampilkan Hasil
                 st.subheader("Hasil Prediksi:")
                 if is_fraud:
                     st.error(f"Transaksi Terdeteksi PENIPUAN (Probabilitas: {prediction_proba[0]*100:.2f}%)")
