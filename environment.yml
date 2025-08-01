@@ -1,0 +1,10 @@
+name: fraud_detection_env
+channels:
+  - snowflake
+dependencies:
+  - python=3.9
+  - streamlit
+  - scikit-learn
+  - pandas
+  - numpy
+  - joblib
