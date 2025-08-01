@@ -53,13 +53,14 @@ with st.form("transaction_form"):
     col1, col2 = st.columns(2)
     with col1:
         type_transaction = st.selectbox("Tipe Transaksi", ('TRANSFER', 'CASH_OUT', 'PAYMENT', 'CASH_IN', 'DEBIT'))
-        amount = st.number_input("Jumlah Transaksi (Amount)", min_value=0.0, format="%.2f")
-        oldbalanceOrg = st.number_input("Saldo Awal Pengirim (oldbalanceOrg)", min_value=0.0, format="%.2f")
+        # PERBAIKAN: Tambahkan value=None dan placeholder agar kolom kosong
+        amount = st.number_input("Jumlah Transaksi (Amount)", min_value=0.0, format="%.2f", value=None, placeholder="Contoh: 500000")
+        oldbalanceOrg = st.number_input("Saldo Awal Pengirim (oldbalanceOrg)", min_value=0.0, format="%.2f", value=None, placeholder="Contoh: 1000000")
     
     with col2:
-        newbalanceOrig = st.number_input("Saldo Akhir Pengirim (newbalanceOrig)", min_value=0.0, format="%.2f")
-        oldbalanceDest = st.number_input("Saldo Awal Penerima (oldbalanceDest)", min_value=0.0, format="%.2f")
-        newbalanceDest = st.number_input("Saldo Akhir Penerima (newbalanceDest)", min_value=0.0, format="%.2f")
+        newbalanceOrig = st.number_input("Saldo Akhir Pengirim (newbalanceOrig)", min_value=0.0, format="%.2f", value=None, placeholder="Contoh: 500000")
+        oldbalanceDest = st.number_input("Saldo Awal Penerima (oldbalanceDest)", min_value=0.0, format="%.2f", value=None, placeholder="Contoh: 200000")
+        newbalanceDest = st.number_input("Saldo Akhir Penerima (newbalanceDest)", min_value=0.0, format="%.2f", value=None, placeholder="Contoh: 700000")
 
     submit_button = st.form_submit_button(label="Cek Transaksi")
 
@@ -67,7 +68,10 @@ with st.form("transaction_form"):
 # Logika Prediksi
 # =============================================================================
 if submit_button:
-    if not all([model, scaler, SELECTED_INDICES]):
+    # PERBAIKAN: Tambahkan validasi untuk memastikan semua kolom diisi
+    if any(v is None for v in [amount, oldbalanceOrg, newbalanceOrig, oldbalanceDest, newbalanceDest]):
+        st.warning("Harap isi semua kolom nominal sebelum melakukan prediksi.")
+    elif not all([model, scaler, SELECTED_INDICES]):
         st.error("Aplikasi tidak dapat melakukan prediksi karena model gagal dimuat.")
     else:
         with st.spinner('Memproses dan memprediksi...'):
